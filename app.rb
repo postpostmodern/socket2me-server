@@ -64,6 +64,7 @@ module Socket2Me
           logger.info "received initial message from #{ready.fetch("username")}"
           if ready["type"] != "ready"
             connection.write(JSON.dump(type: "error", message: "expected ready"))
+            connection.flush
             logger.warn "unexpected initial message type: #{ready["type"].inspect}"
             next
           end
@@ -71,6 +72,7 @@ module Socket2Me
           token = ready["token"]
           unless Auth.verify_token(username, token)
             connection.write(JSON.dump(type: "error", message: "unauthorized"))
+            connection.flush
             logger.warn "unauthorized for user=#{username.inspect}"
             break
           end
@@ -78,6 +80,7 @@ module Socket2Me
           conn_info = { connection: connection }
           @registry.register(username, conn_info)
           connection.write(JSON.dump(type: "ready", ok: true))
+          connection.flush
           logger.info "user=#{username} registered and ready"
 
           # Main loop: receive responses from client
@@ -90,7 +93,17 @@ module Socket2Me
             when "ping"
               # Respond to keep-alive ping
               logger.info "ponging the ping"
-              connection.write(JSON.dump(type: "pong", id: payload["id"]))
+              begin
+                lock = @write_locks[username]
+                lock.synchronize do
+                  connection.write(JSON.dump(type: "pong", id: payload["id"]))
+                  connection.flush
+                end
+                logger.info "pong sent successfully"
+              rescue => e
+                logger.error "failed to send pong: #{e.class}: #{e.message}"
+                raise
+              end
             when "pong"
               # ignore for now
             else
@@ -187,6 +200,7 @@ module Socket2Me
 
       lock.synchronize do
         conn_info[:connection].write(data)
+        conn_info[:connection].flush
       end
     end
   end

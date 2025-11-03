@@ -39,6 +39,7 @@ GEM
     io-event (1.14.0)
     io-stream (0.11.0)
     json (2.15.2)
+    logger (1.7.0)
     metrics (0.15.0)
     nio4r (2.7.4)
     oj (3.16.12)
@@ -72,6 +73,7 @@ DEPENDENCIES
   async (~> 2.34)
   async-websocket
   base64
+  logger (~> 1.7)
   oj
   puma (~> 7.1)
   rack

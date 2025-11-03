@@ -83,6 +83,7 @@ module Socket2Me
           # Main loop: receive responses from client
           while (message = connection.read)
             payload = JSON.parse(message)
+            logger.info "received message: #{payload.inspect}"
             case payload["type"]
             when "response"
               @broker.deliver_response(payload["id"], payload)

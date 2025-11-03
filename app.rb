@@ -88,6 +88,7 @@ module Socket2Me
               @broker.deliver_response(payload["id"], payload)
             when "ping"
               # Respond to keep-alive ping
+              logger.info "ponging the ping"
               connection.write(JSON.dump(type: "pong", id: payload["id"]))
             when "pong"
               # ignore for now

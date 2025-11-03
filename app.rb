@@ -86,6 +86,9 @@ module Socket2Me
             case payload["type"]
             when "response"
               @broker.deliver_response(payload["id"], payload)
+            when "ping"
+              # Respond to keep-alive ping
+              connection.write(JSON.dump(type: "pong", id: payload["id"]))
             when "pong"
               # ignore for now
             else

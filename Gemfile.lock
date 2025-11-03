@@ -31,14 +31,6 @@ GEM
       fiber-annotation
       fiber-local (~> 1.1)
       json
-    faraday (2.14.0)
-      faraday-net_http (>= 2.0, < 3.5)
-      json
-      logger
-    faraday-multipart (1.1.1)
-      multipart-post (~> 2.0)
-    faraday-net_http (3.4.1)
-      net-http (>= 0.5.0)
     fiber-annotation (0.2.0)
     fiber-local (1.1.0)
       fiber-storage
@@ -47,11 +39,7 @@ GEM
     io-event (1.14.0)
     io-stream (0.11.0)
     json (2.15.2)
-    logger (1.7.0)
     metrics (0.15.0)
-    multipart-post (2.4.1)
-    net-http (0.7.0)
-      uri
     nio4r (2.7.4)
     oj (3.16.12)
       bigdecimal (>= 3.0)
@@ -75,7 +63,6 @@ GEM
       nio4r (~> 2.0)
     rack (3.2.3)
     traces (0.18.2)
-    uri (1.1.0)
 
 PLATFORMS
   arm64-darwin-24
@@ -85,8 +72,6 @@ DEPENDENCIES
   async (~> 2.34)
   async-websocket
   base64
-  faraday
-  faraday-multipart
   oj
   puma (~> 7.1)
   rack

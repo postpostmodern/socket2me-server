@@ -8,9 +8,9 @@ require "async/websocket/adapters/rack"
 require "securerandom"
 require "base64"
 
-require_relative "./connection_registry"
-require_relative "./request_broker"
-require_relative "./middleware/auth"
+require_relative "./lib/connection_registry"
+require_relative "./lib/request_broker"
+require_relative "./lib/middleware/auth"
 
 module Socket2Me
   class App
@@ -133,7 +133,8 @@ module Socket2Me
 
     def extract_username_from_host(host)
       # Expecting {username}.socket2me.dev
-      host.to_s.split(".").first if parts.length >= 3
+      parts = host.to_s.split(".")
+      parts.first if parts.length >= 3
     end
 
     def filtered_request_headers(env)

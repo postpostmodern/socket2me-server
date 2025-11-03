@@ -33,33 +33,38 @@ module Socket2Me
 
     private
 
+    def log(message)
+      puts "[#{Time.now.iso8601}][socket2me][server] #{message}"
+    end
+
     def handle_websocket(env)
-      puts "[socket2me][server] incoming /ws request"
+      log "incoming /ws request"
       Async::WebSocket::Adapters::Rack.open(env) do |connection|
-        puts "[socket2me][server] websocket upgraded"
+        log "websocket upgraded"
         username = nil
         begin
           # Expect initial ready/auth message
           raw = connection.read
-          puts "[socket2me][server] received initial message: #{raw.inspect}"
+
           ready = JSON.parse(raw)
+          log "received initial message from #{ready.fetch("username")}"
           if ready["type"] != "ready"
             connection.write(JSON.dump(type: "error", message: "expected ready"))
-            puts "[socket2me][server] unexpected initial message type: #{ready["type"].inspect}"
+            log "unexpected initial message type: #{ready["type"].inspect}"
             next
           end
           username = ready["username"]
           token = ready["token"]
           unless Auth.verify_token(username, token)
             connection.write(JSON.dump(type: "error", message: "unauthorized"))
-            puts "[socket2me][server] unauthorized for user=#{username.inspect}"
+            log "unauthorized for user=#{username.inspect}"
             break
           end
 
           conn_info = { connection: connection }
           @registry.register(username, conn_info)
           connection.write(JSON.dump(type: "ready", ok: true))
-          puts "[socket2me][server] user=#{username} registered and ready"
+          log "user=#{username} registered and ready"
 
           # Main loop: receive responses from client
           while (message = connection.read)
@@ -74,14 +79,14 @@ module Socket2Me
             end
           end
         rescue => e
-          puts "[socket2me][server] websocket error: #{e.class}: #{e.message}"
+          log "websocket error: #{e.class}: #{e.message}"
         ensure
           @registry.deregister(username, { connection: connection }) if username
-          puts "[socket2me][server] websocket closed for user=#{username.inspect}"
+          log "websocket closed for user=#{username.inspect}"
         end
       end
     rescue Async::WebSocket::ProtocolError
-      puts "[socket2me][server] protocol error: not a websocket upgrade"
+      log "protocol error: not a websocket upgrade"
       [426, { "content-type" => "application/json" }, [JSON.dump(error: "upgrade required")] ]
     end
 
@@ -128,9 +133,7 @@ module Socket2Me
 
     def extract_username_from_host(host)
       # Expecting {username}.socket2me.dev
-      parts = host.to_s.split(".")
-      return nil if parts.length < 3
-      parts.first
+      host.to_s.split(".").first if parts.length >= 3
     end
 
     def filtered_request_headers(env)
@@ -161,6 +164,7 @@ module Socket2Me
       lock = @write_locks[username]
       conn_info = @registry.get(username)
       return unless conn_info
+
       lock.synchronize do
         conn_info[:connection].write(data)
       end

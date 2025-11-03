@@ -27,6 +27,7 @@ module Socket2Me
         while entry.response.nil?
           remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
           break if remaining <= 0
+
           entry.cond.wait(remaining)
         end
         entry.response
@@ -39,6 +40,7 @@ module Socket2Me
       @lock.synchronize do
         entry = @entries[id]
         return false unless entry
+
         entry.response = payload
         entry.cond.broadcast
         true

@@ -92,18 +92,8 @@ module Socket2Me
               @broker.deliver_response(payload["id"], payload)
             when "ping"
               # Respond to keep-alive ping
-              logger.info "ponging the ping"
-              begin
-                lock = @write_locks[username]
-                lock.synchronize do
-                  connection.write(JSON.dump(type: "pong", id: payload["id"]))
-                  connection.flush
-                end
-                logger.info "pong sent successfully"
-              rescue => e
-                logger.error "failed to send pong: #{e.class}: #{e.message}"
-                raise
-              end
+              connection.write(JSON.dump(type: "pong", id: payload["id"]))
+              connection.flush
             when "pong"
               # ignore for now
             else

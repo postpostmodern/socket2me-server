@@ -2,6 +2,9 @@
 
 A simple Ruby-based HTTPS-to-local tunnel using a Rack WebSocket server and a Ruby client.
 
+> [!WARNING]
+> This is a nacent experiment. There may be security issues. Use at your own risk.
+
 ## Server
 
 - Runs on port 5050 behind nginx. See `server/nginx.example.conf`.
@@ -14,6 +17,8 @@ puma -p 5050
 ```
 
 ## Client
+
+The socket2me client can be found at https://github.com/postpostmodern/socket2me
 
 - Configure `config/client.yml` with your username, key, server, and local target.
 

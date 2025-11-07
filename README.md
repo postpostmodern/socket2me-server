@@ -1,4 +1,4 @@
-# socket2me
+# Socket2Me
 
 A simple Ruby-based HTTPS-to-local tunnel using a Rack WebSocket server and a Ruby client.
 

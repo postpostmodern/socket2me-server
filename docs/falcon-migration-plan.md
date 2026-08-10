@@ -1,6 +1,27 @@
 # Falcon migration plan
 
-Status: **proposed** (branch `falcon-migration`, off `security-hardening`)
+Status: **implemented** (branch `falcon-migration`, off `security-hardening`)
+
+## As built (deviations from the original design below)
+
+- **Runner: `falcon serve`, not the `falcon host` DSL.** The `config/falcon.rb`
+  service-DSL approach failed on async-service 0.25 (facet-block arity: `port`/`endpoint`
+  blocks are memoized only at arity 0, and the wrapper's calling convention raised
+  `wrong number of arguments`). `falcon serve --bind http://127.0.0.1:5050 --count 1`
+  serves `config.ru` directly, is loopback + HTTP/1.1, and is proven working end to end, so
+  we standardized on it and removed `config/falcon.rb`.
+- **`rack.input` nil guard.** Under protocol-rack (Falcon), `req.body` is `nil` for a
+  bodyless request (Rack 3 permits it); Puma always gave a StringIO. Ingress now uses
+  `(req.body&.read).to_s` and `req.body&.rewind`. Found via the smoke test.
+- **Decisions locked in:** single process (Option A); systemd via `deploy/socket2me.service`;
+  gems updated (`async` 2.34→2.44, `falcon` 0.57 added, `puma` removed, unused `oj` removed);
+  `minitest`/`rake` added under `:test`.
+- **Verification:** `rake test` green (12 assertions incl. async broker + auth bypass), plus a
+  live Falcon smoke test — WS auth, request relay through the writer fiber, promise-broker
+  response, and a POST body round-trip all confirmed; unknown user → 503.
+
+---
+
 
 ## Why
 

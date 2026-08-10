@@ -7,14 +7,21 @@ A simple Ruby-based HTTPS-to-local tunnel using a Rack WebSocket server and a Ru
 
 ## Server
 
-- Runs on port 5050 behind nginx. See `server/nginx.example.conf`.
+- Runs as a single [Falcon](https://github.com/socketry/falcon) reactor process on
+  `127.0.0.1:5050` behind nginx. See `nginx/nginx.example.conf` and
+  `deploy/socket2me.service`.
 - Configure users in `config/server.yml`.
 
-Start (from `server/`):
+Start (from the repo root):
 
 ```bash
-puma -p 5050
+bundle exec falcon serve --bind http://127.0.0.1:5050 --count 1
 ```
+
+One Falcon process handles all connections; there is no port pool. The server
+binds to loopback only — all public traffic must arrive via nginx (which
+terminates TLS and sets the trusted `X-S2M-Username` header). Keep the firewall
+denying the app port from the internet.
 
 ## Client
 

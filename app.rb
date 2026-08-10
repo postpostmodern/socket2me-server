@@ -3,6 +3,7 @@
 require "rack"
 require "json"
 require "async"
+require "async/queue"
 require "async/websocket"
 require "async/websocket/adapters/rack"
 require "securerandom"
@@ -18,7 +19,6 @@ module Socket2Me
     def initialize
       @registry = ConnectionRegistry.new
       @broker = RequestBroker.new
-      @write_locks = Hash.new { |h, k| h[k] = Mutex.new }
       @max_body_bytes = (ENV["S2M_MAX_BODY"] || (10 * 1024 * 1024)).to_i
       # How long an upgraded socket has to send a valid `ready`/auth message
       # before we drop it. Bounds slowloris-style pre-auth connection holding.
@@ -59,15 +59,15 @@ module Socket2Me
       Async::WebSocket::Adapters::Rack.open(env) do |connection|
         logger.info "websocket upgraded"
         username = nil
+        conn_info = nil
+        writer = nil
         begin
           # Expect initial ready/auth message, bounded by an auth deadline so an
           # unauthenticated client cannot hold the connection open indefinitely.
-          raw =
-            if (task = Async::Task.current)
-              task.with_timeout(@auth_timeout) { connection.read }
-            else
-              connection.read
-            end
+          # Pre-auth writes below happen in this single fiber, so they are written
+          # directly; concurrent writes only become possible once ingress fibers
+          # start relaying requests, at which point everything goes via `outbound`.
+          raw = Async::Task.current.with_timeout(@auth_timeout) { connection.read }
 
           ready = JSON.parse(raw)
           logger.info "received initial message from #{ready.fetch("username")}"
@@ -86,10 +86,20 @@ module Socket2Me
             break
           end
 
-          conn_info = { connection: connection }
+          # A single writer fiber owns every write to this connection. Reads stay
+          # in this fiber; ingress fibers and pong replies only enqueue, so frames
+          # can never interleave and no write lock is needed.
+          outbound = Async::Queue.new
+          writer = Async::Task.current.async do
+            while (data = outbound.dequeue)
+              connection.write(data)
+              connection.flush
+            end
+          end
+
+          conn_info = { connection: connection, outbound: outbound }
           @registry.register(username, conn_info)
-          connection.write(JSON.dump(type: "ready", ok: true))
-          connection.flush
+          outbound.enqueue(JSON.dump(type: "ready", ok: true))
           logger.info "user=#{username} registered and ready"
 
           # Main loop: receive responses from client
@@ -103,8 +113,7 @@ module Socket2Me
               @broker.deliver_response(payload["id"], payload)
             when "ping"
               # Respond to keep-alive ping
-              connection.write(JSON.dump(type: "pong", id: payload["id"]))
-              connection.flush
+              outbound.enqueue(JSON.dump(type: "pong", id: payload["id"]))
             when "pong"
               # ignore for now
             else
@@ -114,7 +123,8 @@ module Socket2Me
         rescue => e
           logger.error "websocket error: #{e.class}: #{e.message}"
         ensure
-          @registry.deregister(username, { connection: connection }) if username
+          @registry.deregister(username, conn_info) if username && conn_info
+          writer&.stop
           logger.info "websocket closed for user=#{username.inspect}"
         end
       end
@@ -141,11 +151,13 @@ module Socket2Me
         return [413, { "content-type" => "application/json" }, [JSON.dump(error: "Request entity too large")]]
       end
 
-      body = req.body.read.to_s
+      # Under Rack 3 / protocol-rack (Falcon), rack.input is nil when the request
+      # has no body, so guard the read/rewind.
+      body = (req.body&.read).to_s
       if body.bytesize > @max_body_bytes
         return [413, { "content-type" => "application/json" }, [JSON.dump(error: "Request entity too large")]]
       end
-      req.body.rewind
+      req.body&.rewind
       payload = {
         type: "request",
         id: id,
@@ -204,14 +216,11 @@ module Socket2Me
     end
 
     def write_to_client(username, data)
-      lock = @write_locks[username]
       conn_info = @registry.get(username)
       return unless conn_info
 
-      lock.synchronize do
-        conn_info[:connection].write(data)
-        conn_info[:connection].flush
-      end
+      # Hand off to the connection's writer fiber; never write the socket directly.
+      conn_info[:outbound].enqueue(data)
     end
   end
 end

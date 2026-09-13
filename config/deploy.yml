@@ -35,10 +35,6 @@ servers:
 # and drops the routing table for every app on the box.
 proxy:
   ssl: true
-  # The container listens on 5050 (Dockerfile). Kamal's default is 80; without
-  # this the proxy targets a port nothing is bound to and every deploy fails
-  # its healthcheck.
-  app_port: 5050
   hosts:
 <% Socket2Me::Roster.hosts(ENV.fetch("DEPLOY_DOMAIN")).each do |host| %>
     - <%= host %>
@@ -71,8 +67,6 @@ env:
     # config/users.yml exactly or the app refuses to serve and the deploy fails
     # its healthcheck.
     - S2M_USERS
-  clear:
-    RACK_ENV: production
 
 aliases:
   logs: app logs -f

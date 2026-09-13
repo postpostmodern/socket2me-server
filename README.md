@@ -7,21 +7,29 @@ A simple Ruby-based HTTPS-to-local tunnel using a Rack WebSocket server and a Ru
 
 ## Server
 
-- Runs as a single [Falcon](https://github.com/socketry/falcon) reactor process on
-  `127.0.0.1:5050` behind nginx. See `nginx/nginx.example.conf` and
-  `deploy/socket2me.service`.
-- Configure users in `config/server.yml`.
+A single [Falcon](https://github.com/socketry/falcon) reactor process in a
+container, deployed with [Kamal](https://kamal-deploy.org) behind the shared
+kamal-proxy, which terminates TLS with one Let's Encrypt cert per user
+subdomain. There is no nginx and no certbot. See `docs/kamal-deploy.md`.
 
-Start (from the repo root):
+- Usernames live in `config/users.yml` (committed, opaque handles — they are
+  public via Certificate Transparency); tokens arrive as the `S2M_USERS` secret.
+  The app refuses to serve if the two disagree (the deploy fails its
+  healthcheck). Mint a user with `bin/new-user`.
+- Routing is by `Host` only. The proxy health-checks `/_s2m/up`.
+
+Deploy:
+
+```bash
+bin/check-roster     # roster valid, deploy.yml hosts match, S2M_USERS matches
+bin/kamal deploy
+```
+
+Local development, without Kamal (tokens from the gitignored `config/server.yml`):
 
 ```bash
 bundle exec falcon serve --bind http://127.0.0.1:5050 --count 1
 ```
-
-One Falcon process handles all connections; there is no port pool. The server
-binds to loopback only — all public traffic must arrive via nginx (which
-terminates TLS and sets the trusted `X-S2M-Username` header). Keep the firewall
-denying the app port from the internet.
 
 ## Client
 

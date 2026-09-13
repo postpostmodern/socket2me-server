@@ -2,10 +2,14 @@
 
 source "https://rubygems.org"
 
-gem "async", "~> 2.34"
+gem "async", "~> 2.37"
 gem "async-websocket"
-gem "oj"
+gem "falcon"
 gem "base64"
 gem "rack"
-gem "puma", "~> 7.1"
 gem "logger", "~> 1.7"
+
+group :test do
+  gem "minitest", "~> 5.0"
+  gem "rake"
+end

@@ -1,0 +1,55 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Catches roster drift before a deploy does. Run from the project root with
+# .kamal/env present (it renders config/deploy.yml the way Kamal does).
+#
+# What this checks that `kamal config` does not:
+#   - config/users.yml usernames are opaque (a-z0-9, 8–32 chars) and unique
+#   - the roster is non-empty — an empty hosts list fails Kamal's SSL validation
+#     with a message that never mentions users.yml
+#   - config/deploy.yml, rendered through ERB, yields exactly one proxy host per
+#     roster user and nothing else
+#   - if S2M_USERS is in the environment (e.g. under `op run`), its keys equal
+#     the roster exactly, which is the same check the app performs at boot
+
+require "bundler/setup"
+require "yaml"
+require "erb"
+
+Dir.chdir(File.expand_path("..", __dir__))
+
+require_relative "../lib/roster"
+require_relative "../lib/middleware/auth"
+
+names =
+  begin
+    Socket2Me::Roster.names
+  rescue ArgumentError => e
+    abort e.message
+  end
+abort "config/users.yml has no users — mint one with bin/new-user" if names.empty?
+
+# Rendering deploy.yml loads .kamal/env via dotenv, so DEPLOY_DOMAIN is only
+# available after this line.
+rendered = ERB.new(File.read("config/deploy.yml")).result
+proxy_hosts = Array(YAML.safe_load(rendered).dig("proxy", "hosts")).sort
+expected = Socket2Me::Roster.hosts(ENV.fetch("DEPLOY_DOMAIN")).sort
+
+unless proxy_hosts == expected
+  abort "config/deploy.yml proxy.hosts do not match the roster\n  rendered: #{proxy_hosts.inspect}\n  expected: #{expected.inspect}"
+end
+
+if ENV["S2M_USERS"]
+  Socket2Me::Auth.reset!
+  begin
+    Socket2Me::Auth.verify_roster!(names)
+  rescue ArgumentError => e
+    abort e.message
+  end
+  token_note = "S2M_USERS matches"
+else
+  token_note = "S2M_USERS not set, token check skipped"
+end
+
+puts "roster ok: #{names.length} user(s); deploy.yml hosts match; #{token_note}"

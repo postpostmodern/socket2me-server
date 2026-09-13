@@ -1,0 +1,32 @@
+# See https://docs.docker.com/engine/reference/builder/#dockerignore-file
+
+# Git
+/.git/
+/.gitignore
+
+# Bundler config
+/.bundle
+
+# Environment files
+/.env*
+
+# Local-dev token file. Production tokens arrive via the S2M_USERS secret; this
+# must never ride along in the image.
+/config/server.yml
+
+# Kamal files. Without this, .kamal/secrets ships inside the image — harmless in
+# itself (every value is a deploy-time shell lookup) but it discloses the
+# 1Password account UUID and item name to anyone who pulls it.
+/config/deploy*.yml
+/.kamal
+
+# Not needed at runtime
+/test
+/docs
+/Rakefile
+/tmp/*
+!/tmp/.keep
+
+# Docker-related files
+/.dockerignore
+/Dockerfile*

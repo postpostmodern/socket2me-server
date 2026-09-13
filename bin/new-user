@@ -1,0 +1,28 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Mints one tunnel user: an opaque username and a token.
+#
+# Opaque because every per-host Let's Encrypt cert lands in Certificate
+# Transparency logs, so usernames are publicly enumerable — real names would
+# publish the team roster. The token never touches the repo.
+#
+# Then:
+#   1. add the username to config/users.yml and commit
+#   2. append "user:token" to S2M_USERS in the 1Password item
+#   3. hand the user their username + token for the client's config/client.yml
+#   4. deploy — kamal-proxy issues the cert for the new subdomain on first use
+
+require "securerandom"
+require_relative "../lib/roster"
+
+# alphanumeric is A-Za-z0-9; downcased it is exactly Roster::NAME's charset.
+username = SecureRandom.alphanumeric(12).downcase
+raise "generated username failed validation: #{username}" unless username.match?(Socket2Me::Roster::NAME)
+
+# urlsafe_base64 is A-Za-z0-9-_ : no ":" or "," so it is safe inside S2M_USERS.
+token = SecureRandom.urlsafe_base64(32)
+
+puts "config/users.yml entry:    - #{username}"
+puts "S2M_USERS fragment:        #{username}:#{token}"
+puts "client.yml username / key: #{username} / #{token}"

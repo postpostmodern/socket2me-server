@@ -16,7 +16,9 @@ subdomain. There is no nginx and no certbot. See `docs/kamal-deploy.md`.
   public via Certificate Transparency); tokens arrive as the `S2M_USERS` secret.
   The app refuses to serve if the two disagree (the deploy fails its
   healthcheck). Mint a user with `bin/new-user`.
-- Routing is by `Host` only. The proxy health-checks `/_s2m/up`.
+- Routing is by `Host` only. The proxy health-checks `/up` (Kamal's default),
+  which the server answers itself — `/up` is reserved and never forwarded to a
+  tunnel.
 
 Deploy:
 

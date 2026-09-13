@@ -34,8 +34,11 @@ module Socket2Me
     end
 
     # Answered before any routing. kamal-proxy's healthcheck arrives without a
-    # user subdomain in Host and would otherwise fall through to a 503.
-    HEALTH_PATH = "/_s2m/up"
+    # user subdomain in Host and would otherwise fall through to a 503. /up is
+    # Kamal's default probe path, so deploy.yml needs no healthcheck override;
+    # the cost is that /up on any user's subdomain is answered here rather than
+    # forwarded — a reserved path, noted in the client's example config.
+    HEALTH_PATH = "/up"
 
     def call(env)
       req = Rack::Request.new(env)

@@ -20,13 +20,13 @@ class AppTest < Minitest::Test
   end
 
   def test_health_endpoint_answers_without_a_user_host
-    res = @rack.get("/_s2m/up", "HTTP_HOST" => "172.17.0.3:80")
+    res = @rack.get("/up", "HTTP_HOST" => "172.17.0.3:80")
     assert_equal 200, res.status
     assert_equal "ok", res.body
   end
 
   def test_health_endpoint_ignores_host_entirely
-    res = @rack.get("/_s2m/up", "HTTP_HOST" => "k7x2pq9wz3ma.socket2me.dev")
+    res = @rack.get("/up", "HTTP_HOST" => "k7x2pq9wz3ma.socket2me.dev")
     assert_equal 200, res.status
   end
 

@@ -86,5 +86,7 @@ this host — it recreates the shared proxy and drops every app's routing table.
 - `bin/kamal logs` — tail the app. `bin/kamal shell` — a shell in the container.
 - Nothing is stateful; a container restart drops connected clients, which
   reconnect with backoff.
-- Consider a Honeybadger uptime check on `https://<user>.socket2me.dev/_s2m/up`
+- Consider a Honeybadger uptime check on `https://<user>.socket2me.dev/up`
+  (Kamal's default health path; the server answers it itself, so `/up` is
+  reserved and never forwarded to a tunnel)
   — the team depends on this.

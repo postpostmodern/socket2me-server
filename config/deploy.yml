@@ -39,10 +39,6 @@ proxy:
 <% Socket2Me::Roster.hosts(ENV.fetch("DEPLOY_DOMAIN")).each do |host| %>
     - <%= host %>
 <% end %>
-  # Answered by the app before username routing; the proxy's probe carries no
-  # user subdomain in Host and would otherwise 503.
-  healthcheck:
-    path: /_s2m/up
   # Ingress waits up to 30s for the tunnel client to answer. The proxy must
   # wait longer than the app, or it returns its own 502 first and the app's
   # 504 is never seen.

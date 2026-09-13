@@ -20,6 +20,9 @@ module Socket2Me
       @broker = RequestBroker.new
       @write_locks = Hash.new { |h, k| h[k] = Mutex.new }
       @max_body_bytes = (ENV["S2M_MAX_BODY"] || (10 * 1024 * 1024)).to_i
+      # How long an upgraded socket has to send a valid `ready`/auth message
+      # before we drop it. Bounds slowloris-style pre-auth connection holding.
+      @auth_timeout = Integer(ENV.fetch("S2M_AUTH_TIMEOUT", 10))
     end
 
     def call(env)
@@ -57,8 +60,14 @@ module Socket2Me
         logger.info "websocket upgraded"
         username = nil
         begin
-          # Expect initial ready/auth message
-          raw = connection.read
+          # Expect initial ready/auth message, bounded by an auth deadline so an
+          # unauthenticated client cannot hold the connection open indefinitely.
+          raw =
+            if (task = Async::Task.current)
+              task.with_timeout(@auth_timeout) { connection.read }
+            else
+              connection.read
+            end
 
           ready = JSON.parse(raw)
           logger.info "received initial message from #{ready.fetch("username")}"
@@ -86,7 +95,9 @@ module Socket2Me
           # Main loop: receive responses from client
           while (message = connection.read)
             payload = JSON.parse(message)
-            logger.info "received message: #{payload.inspect}"
+            # Don't log full payloads: response messages carry base64 bodies
+            # that may contain sensitive data. Log only type/id.
+            logger.debug { "received message type=#{payload["type"].inspect} id=#{payload["id"].inspect}" }
             case payload["type"]
             when "response"
               @broker.deliver_response(payload["id"], payload)
@@ -121,6 +132,15 @@ module Socket2Me
       end
 
       id = SecureRandom.uuid
+
+      # Reject oversized bodies by their declared length *before* buffering the
+      # whole thing into memory. nginx's client_max_body_size is the first line
+      # of defense; this guards the app if that limit is raised or absent.
+      declared = req.content_length
+      if declared && declared.to_i > @max_body_bytes
+        return [413, { "content-type" => "application/json" }, [JSON.dump(error: "Request entity too large")]]
+      end
+
       body = req.body.read.to_s
       if body.bytesize > @max_body_bytes
         return [413, { "content-type" => "application/json" }, [JSON.dump(error: "Request entity too large")]]

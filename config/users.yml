@@ -1,0 +1,12 @@
+# Tunnel usernames — the single source of truth for which subdomains exist.
+#
+# config/deploy.yml turns each entry into a kamal-proxy host (<user>.socket2me.dev)
+# with its own Let's Encrypt cert, and the app refuses to serve unless the
+# S2M_USERS secret holds a token for exactly these users. Tokens live in
+# 1Password, never here.
+#
+# Opaque handles only (a-z0-9, 8–32 chars): per-host certs are published to
+# Certificate Transparency, so this list is publicly enumerable. Mint entries
+# with bin/new-user. Removing a user here drops their route on the next deploy;
+# remove their token from S2M_USERS in the same change or the boot check fails.
+users: []

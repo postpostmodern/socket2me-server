@@ -13,6 +13,7 @@ require "logger"
 require_relative "./lib/connection_registry"
 require_relative "./lib/request_broker"
 require_relative "./lib/middleware/auth"
+require_relative "./lib/roster"
 
 module Socket2Me
   class App
@@ -23,10 +24,26 @@ module Socket2Me
       # How long an upgraded socket has to send a valid `ready`/auth message
       # before we drop it. Bounds slowloris-style pre-auth connection holding.
       @auth_timeout = Integer(ENV.fetch("S2M_AUTH_TIMEOUT", 10))
+
+      # S2M_USERS is how a Kamal deploy supplies tokens; when it is present the
+      # token set must match the committed roster exactly or this raises. Falcon
+      # then never brings the worker up, kamal-proxy's healthcheck never sees a
+      # 200, and the deploy fails (see Auth.verify_roster!). Local dev with
+      # config/server.yml skips this.
+      Auth.verify_roster!(Roster.names) if ENV["S2M_USERS"]
     end
+
+    # Answered before any routing. kamal-proxy's healthcheck arrives without a
+    # user subdomain in Host and would otherwise fall through to a 503. /up is
+    # Kamal's default probe path, so deploy.yml needs no healthcheck override;
+    # the cost is that /up on any user's subdomain is answered here rather than
+    # forwarded — a reserved path, noted in the client's example config.
+    HEALTH_PATH = "/up"
 
     def call(env)
       req = Rack::Request.new(env)
+
+      return [200, { "content-type" => "text/plain" }, ["ok"]] if req.path_info == HEALTH_PATH
 
       if req.path_info == "/ws"
         return handle_websocket(env)
@@ -134,7 +151,10 @@ module Socket2Me
     end
 
     def handle_http_ingress(req)
-      username = req.get_header("HTTP_X_S2M_USERNAME") || extract_username_from_host(req.host)
+      # Routing is by Host alone. The old X-S2M-Username header was only safe
+      # because nginx overwrote it; behind kamal-proxy nothing sets it, so
+      # trusting it would let any caller pick a tunnel with a header.
+      username = extract_username_from_host(req.host)
 
       conn_info = username && @registry.get(username)
       unless conn_info
@@ -185,10 +205,16 @@ module Socket2Me
       [status, headers, [body_bytes]]
     end
 
+    # Expecting {username}.socket2me.dev. kamal-proxy only routes the hostnames
+    # in config/deploy.yml, so anything else never reaches us — but validate the
+    # label against the roster charset anyway so an odd Host can't turn into a
+    # surprising registry lookup.
     def extract_username_from_host(host)
-      # Expecting {username}.socket2me.dev
-      parts = host.to_s.split(".")
-      parts.first if parts.length >= 3
+      labels = host.to_s.downcase.sub(/:\d+\z/, "").split(".")
+      return nil if labels.length < 3
+
+      user = labels.first
+      user if user.match?(Roster::NAME)
     end
 
     def filtered_request_headers(env)

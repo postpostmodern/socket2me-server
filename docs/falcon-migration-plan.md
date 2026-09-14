@@ -2,6 +2,11 @@
 
 Status: **implemented** (branch `falcon-migration`, off `security-hardening`)
 
+> **Deployment sections superseded.** The systemd unit, nginx single-upstream,
+> and loopback-bind cutover described below were replaced by a Kamal deploy
+> behind the shared kamal-proxy — see `docs/kamal-deploy.md`. The Falcon
+> runtime design (promise broker, writer fiber, single process) is unchanged.
+
 ## As built (deviations from the original design below)
 
 - **Runner: `falcon serve`, not the `falcon host` DSL.** The `config/falcon.rb`

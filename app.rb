@@ -63,12 +63,17 @@ module Socket2Me
           # Expect initial ready/auth message, bounded by an auth deadline so an
           # unauthenticated client cannot hold the connection open indefinitely.
           #
-          # Async::Task.current *raises* when there is no task; current? returns
-          # nil. Under Puma the WebSocket handler runs outside any Async task, so
-          # the raising form killed every connection before auth ("No async task
-          # available!"). With no task there is nothing to time out on, so the
-          # deadline only applies under an async server (Falcon); under Puma this
-          # is a plain read, as it was before the hardening change.
+          # Async::Task.current *raises* ("No async task available!") when there
+          # is no task. Async::Task.current? is the library's safe, non-raising
+          # lookup: despite the `?`, it returns the Task itself or nil, not a
+          # boolean — documented as `@returns [Interface(:async) | Nil]` and
+          # verified on async 2.34.0 — so `task` below is a real Task.
+          #
+          # Under Puma the WebSocket handler runs outside any Async task, so the
+          # raising form killed every connection before auth. With no task there
+          # is nothing to time out on, so the deadline only applies under an
+          # async server (Falcon); under Puma this is a plain read, as it was
+          # before the hardening change.
           raw =
             if (task = Async::Task.current?)
               task.with_timeout(@auth_timeout) { connection.read }

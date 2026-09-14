@@ -62,8 +62,15 @@ module Socket2Me
         begin
           # Expect initial ready/auth message, bounded by an auth deadline so an
           # unauthenticated client cannot hold the connection open indefinitely.
+          #
+          # Async::Task.current *raises* when there is no task; current? returns
+          # nil. Under Puma the WebSocket handler runs outside any Async task, so
+          # the raising form killed every connection before auth ("No async task
+          # available!"). With no task there is nothing to time out on, so the
+          # deadline only applies under an async server (Falcon); under Puma this
+          # is a plain read, as it was before the hardening change.
           raw =
-            if (task = Async::Task.current)
+            if (task = Async::Task.current?)
               task.with_timeout(@auth_timeout) { connection.read }
             else
               connection.read
@@ -83,7 +90,11 @@ module Socket2Me
             connection.write(JSON.dump(type: "error", message: "unauthorized"))
             connection.flush
             logger.warn "unauthorized for user=#{username.inspect}"
-            break
+            # next, not break: the adapter invokes this block as a proc, and
+            # break from a proc raises LocalJumpError — logged as a spurious
+            # "websocket error" on every failed auth. next returns cleanly and
+            # the ensure/adapter close the connection exactly as before.
+            next
           end
 
           conn_info = { connection: connection }

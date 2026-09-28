@@ -1,0 +1,74 @@
+<%#
+  Infrastructure identifiers live in .kamal/env (gitignored) so this file carries
+  the shape of the deploy without the specifics. ENV.fetch, never ENV[] — a
+  missing value must fail loudly rather than quietly deploying somewhere
+  unintended. See .kamal/env.example.
+
+  Kamal always evaluates this from the project root, which is what the relative
+  paths below rely on.
+%>
+<% require "dotenv"; Dotenv.load(".kamal/env") %>
+<% require File.expand_path("lib/roster") %>
+
+# Namespaces containers, labels, and the deploy lock. This host also runs
+# exquisiteapp and apple_music_mcp; the name must stay distinct from both.
+service: socket2me
+
+# Kamal prefixes registry.server, giving ghcr.io/<user>/socket2me.
+# ghcr.io requires the whole path be lowercase.
+image: <%= ENV.fetch("REGISTRY_USER").downcase %>/socket2me
+
+servers:
+  web:
+    - <%= ENV.fetch("DEPLOY_HOST") %>
+
+# kamal-proxy is SHARED with the other apps on this host and routes by Host.
+#
+# One host per tunnel user, derived from config/users.yml — the same roster the
+# app verifies its tokens against, so the two cannot drift. kamal-proxy issues a
+# separate Let's Encrypt cert per hostname and renews them itself; the host
+# list is also its ACME whitelist, so an unlisted subdomain gets neither a cert
+# nor a route. Adding a user: bin/new-user → commit users.yml → add the token to
+# S2M_USERS in 1Password → deploy.
+#
+# Never run `kamal proxy reboot` here: it recreates the single proxy container
+# and drops the routing table for every app on the box.
+proxy:
+  ssl: true
+  hosts:
+<% Socket2Me::Roster.hosts(ENV.fetch("DEPLOY_DOMAIN")).each do |host| %>
+    - <%= host %>
+<% end %>
+  # Ingress waits up to 30s for the tunnel client to answer. The proxy must
+  # wait longer than the app, or it returns its own 502 first and the app's
+  # 504 is never seen.
+  response_timeout: 60
+  # Match S2M_MAX_BODY (10MB). The proxy default is 1GB.
+  buffering:
+    max_request_body: 10485760
+
+# GitHub Container Registry rather than Docker Hub, whose free plan allows a
+# single private repository. New ghcr.io packages are private by default;
+# confirm that after the first push. The token is a GitHub PAT with
+# `write:packages`, not a password.
+registry:
+  server: ghcr.io
+  username: <%= ENV.fetch("REGISTRY_USER") %>
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+env:
+  secret:
+    # "user:token,user:token" — the token half of the roster. Its keys must equal
+    # config/users.yml exactly or the app refuses to serve and the deploy fails
+    # its healthcheck.
+    - S2M_USERS
+
+aliases:
+  logs: app logs -f
+  shell: app exec --interactive --reuse "bash"
+
+# Stateless by design — the connection registry is in-memory — so no volumes.
+
+builder:
+  arch: amd64

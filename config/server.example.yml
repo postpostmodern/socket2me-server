@@ -1,2 +1,7 @@
+# Local development only. In production, tokens arrive via the S2M_USERS secret
+# and the roster lives in config/users.yml — see docs/kamal-deploy.md.
+#
+# Usernames must be opaque handles (a-z0-9, 8–32 chars): the server routes by
+# Host and rejects any other label, even in dev. Mint one with bin/new-user.
 users:
-  jason: supersecretkey
+  k7x2pq9wz3ma: supersecretkey

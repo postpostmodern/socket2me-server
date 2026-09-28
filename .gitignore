@@ -1,3 +1,7 @@
 config/server.yml
 .bundle
 tmp/*
+
+# Kamal infrastructure identifiers — see .kamal/env.example
+/.kamal/env
+/.env*

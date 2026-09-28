@@ -4,10 +4,10 @@ source "https://rubygems.org"
 
 gem "async", "~> 2.37"
 gem "async-websocket"
-gem "falcon"
 gem "base64"
-gem "rack"
+gem "falcon"
 gem "logger", "~> 1.7"
+gem "rack"
 
 group :test do
   gem "minitest", "~> 5.0"
